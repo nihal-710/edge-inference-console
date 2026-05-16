@@ -9,32 +9,19 @@ export interface NavItem {
   description: string;
 }
 
-// ─── Inference State Machine ───────────────────────────────────────────────────
-
-export type InferenceStatus =
-  | "idle"
-  | "connecting"
-  | "streaming"
-  | "completed"
-  | "error"
-  | "aborted";
-
-export type InputMode = "text" | "audio";
-
-// ─── Session / Run ─────────────────────────────────────────────────────────────
-
-export interface InferenceRun {
-  id: string;
-  timestamp: number;
-  inputMode: InputMode;
-  prompt: string;
-  output: string;
-  status: InferenceStatus;
-  tokenCount: number;
-  durationMs: number;
-  tokensPerSecond: number;
-  errorMessage?: string;
-}
+// ─── Re-export inference types so components can import from either location ───
+export type {
+  InferenceStatus,
+  InputMode,
+  InferenceRun,
+  FailureMode,
+  InferenceState,
+  InferenceActions,
+  InferenceRequest,
+  StreamError,
+  StreamErrorKind,
+  LiveMetrics,
+} from "./inference";
 
 // ─── Diff ──────────────────────────────────────────────────────────────────────
 
@@ -56,7 +43,7 @@ export interface DiffStats {
   inserted: number;
   deleted: number;
   replaced: number;
-  similarityScore: number; // 0–1
+  similarityScore: number;
 }
 
 // ─── UI Primitives ─────────────────────────────────────────────────────────────
