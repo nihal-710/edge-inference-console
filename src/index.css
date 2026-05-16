@@ -1,0 +1,76 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-canvas text-text-primary font-sans;
+    margin: 0;
+  }
+
+  :focus-visible {
+    outline: 2px solid #00d4ff;
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border-strong rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-text-muted;
+  }
+
+  ::selection {
+    background: rgba(0, 212, 255, 0.2);
+    color: #e8e8f0;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(42, 42, 61, 0.4) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(42, 42, 61, 0.4) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  .glow-cyan {
+    box-shadow:
+      0 0 0 1px rgba(0, 212, 255, 0.25),
+      0 0 16px rgba(0, 212, 255, 0.12);
+  }
+
+  .glow-green {
+    box-shadow:
+      0 0 0 1px rgba(0, 255, 157, 0.25),
+      0 0 16px rgba(0, 255, 157, 0.12);
+  }
+}
