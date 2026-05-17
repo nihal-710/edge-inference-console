@@ -1,16 +1,16 @@
-/**
- * InferencePlayground.tsx — Phase 2 version
- *
- * Wires up the streaming engine to the UI.
- * Input controls, prompt textarea, failure simulation, action buttons.
- * Full audio mode comes in Phase 3.
- */
-
-import { useState, useRef } from "react";
+import { useState } from "react";
 import {
-  Terminal, Zap, Mic, ShieldCheck,
-  ArrowRight, Radio, Play, Square, RotateCcw, AlertTriangle,
+  Terminal,
+  Zap,
+  Mic,
+  ShieldCheck,
+  ArrowRight,
+  Radio,
+  Play,
+  Square,
+  RotateCcw,
 } from "lucide-react";
+import { cn } from "../lib/utils";
 import { SectionHeader } from "../components/ui/SectionHeader";
 import { Card, CardBody, CardHeader } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
@@ -18,85 +18,109 @@ import { Button } from "../components/ui/Button";
 import { StatCard } from "../components/ui/StatCard";
 import { StreamingOutput } from "../components/playground/StreamingOutput";
 import { MetricsPanel } from "../components/playground/MetricsPanel";
+import { StatusBanner } from "../components/playground/StatusBanner";
+import { TextInputPanel } from "../components/playground/TextInputPanel";
+import { AudioInputPanel } from "../components/playground/AudioInputPanel";
+import { FailureControls } from "../components/playground/FailureControls";
 import { useStreamingInference } from "../hooks/useStreamingInference";
-import type { FailureMode } from "../types/inference";
+import type { FailureMode, InputMode } from "../types/inference";
 
 const FEATURE_CARDS = [
   {
     icon: <Radio size={20} />,
     label: "Architecture",
     value: "Streaming",
-    description: "Token-by-token rendering via ReadableStream + Fetch API. No buffering.",
+    description: "Token-by-token via ReadableStream + Fetch API. No buffering.",
     accent: "cyan" as const,
   },
   {
     icon: <Mic size={20} />,
     label: "Input Modes",
     value: "Multimodal",
-    description: "Text and audio input with MediaRecorder API. Toggle between modes.",
+    description:
+      "Text and audio via MediaRecorder API with live permission handling.",
     accent: "green" as const,
   },
   {
     icon: <Zap size={20} />,
     label: "Metrics",
     value: "Live",
-    description: "Real-time token counter and tokens/sec updated on every chunk arrival.",
+    description:
+      "Token count and tok/s update on every chunk arrival via 100ms ticker.",
     accent: "amber" as const,
   },
   {
     icon: <ShieldCheck size={20} />,
     label: "Error Handling",
     value: "Resilient",
-    description: "Preserves partial output on network drops, timeouts, and stream aborts.",
+    description:
+      "Partial output preserved on network drops, timeouts, and aborts.",
     accent: "purple" as const,
   },
 ];
 
-const FAILURE_MODES: { value: FailureMode; label: string }[] = [
-  { value: "none",         label: "No failure" },
-  { value: "network_drop", label: "Network drop" },
-  { value: "timeout",      label: "Timeout" },
-];
-
-const SAMPLE_PROMPTS = [
-  "Explain how on-device inference works and what makes it different from cloud inference.",
-  "Describe the ReadableStream API and how it enables token-by-token rendering.",
-  "What are the tradeoffs of quantizing a language model to INT4 for edge deployment?",
+const INPUT_MODES: { id: InputMode; label: string; icon: React.ReactNode }[] = [
+  {
+    id: "text",
+    label: "Text",
+    icon: <Terminal size={14} aria-hidden="true" />,
+  },
+  { id: "audio", label: "Audio", icon: <Mic size={14} aria-hidden="true" /> },
 ];
 
 export function InferencePlayground() {
   const inference = useStreamingInference();
 
-  const [prompt, setPrompt] = useState("");
+  const [inputMode, setInputMode] = useState<InputMode>("text");
+  const [textPrompt, setTextPrompt] = useState("");
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [failureMode, setFailureMode] = useState<FailureMode>("none");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const isRunning = inference.status === "connecting" || inference.status === "streaming";
-  const canRetry  = inference.status === "error" || inference.status === "aborted";
+  const isRunning =
+    inference.status === "connecting" || inference.status === "streaming";
+  const canRetry =
+    inference.status === "error" || inference.status === "aborted";
   const hasOutput = inference.output.length > 0;
 
+  const canRun =
+    inputMode === "text" ? textPrompt.trim().length > 0 : audioBlob !== null;
+
   const handleRun = () => {
-    const trimmedPrompt = prompt.trim();
-    if (!trimmedPrompt || isRunning) return;
-    inference.run({ prompt: trimmedPrompt, inputMode: "text", failureMode });
+    if (isRunning) return;
+    if (inputMode === "text") {
+      const prompt = textPrompt.trim();
+      if (!prompt) return;
+      inference.run({ prompt, inputMode: "text", failureMode });
+    } else {
+      if (!audioBlob) return;
+      inference.run({
+        prompt: `[Audio recording — ${(audioBlob.size / 1024).toFixed(1)} KB captured via MediaRecorder]`,
+        inputMode: "audio",
+        failureMode,
+      });
+    }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-      e.preventDefault();
-      handleRun();
-    }
+  const handleModeChange = (mode: InputMode) => {
+    if (isRunning) return;
+    setInputMode(mode);
   };
 
   return (
     <div className="space-y-8">
-
       <div className="stagger-1">
         <SectionHeader
           eyebrow="Part A — Inference Engine"
           title="Inference Playground"
-          description="Stream token-by-token model responses directly in the browser. Supports text and audio input with live metrics and graceful error handling."
-          actions={<Badge variant="green" dot>Live Streaming</Badge>}
+          description="Stream token-by-token model responses in the browser. Toggle between text and audio input, observe live metrics, and test error resilience."
+          actions={
+            <div className="flex items-center gap-2">
+              <Badge variant="green" dot>
+                Live Streaming
+              </Badge>
+              <Badge variant="cyan">Part A Complete</Badge>
+            </div>
+          }
         />
       </div>
 
@@ -115,103 +139,91 @@ export function InferencePlayground() {
       </div>
 
       <div className="stagger-3 grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-
-        {/* ── Left column: Input + Metrics + Actions ── */}
+        {/* Left column */}
         <div className="lg:col-span-1 flex flex-col gap-4">
-
           <Card>
             <CardHeader>
-              <Terminal size={14} className="text-accent-cyan" aria-hidden="true" />
-              <span className="text-xs font-mono font-semibold text-text-primary">Input</span>
-              <Badge variant="cyan" className="ml-auto">Text Mode</Badge>
-            </CardHeader>
-            <CardBody className="flex flex-col gap-4">
-
-              <div className="flex flex-col gap-1.5">
-                <label
-                  htmlFor="prompt-input"
-                  className="text-xs font-mono text-text-muted uppercase tracking-wider"
-                >
-                  Prompt
-                </label>
-                <textarea
-                  id="prompt-input"
-                  ref={textareaRef}
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  disabled={isRunning}
-                  placeholder="Enter your prompt here..."
-                  rows={6}
-                  aria-label="Inference prompt"
-                  aria-describedby="prompt-hint"
-                  className="w-full rounded-lg border border-border bg-canvas/60 px-3 py-2.5
-                    text-sm font-mono text-text-primary placeholder:text-text-muted
-                    resize-none leading-relaxed
-                    focus:outline-none focus:border-accent-cyan focus:ring-1 focus:ring-accent-cyan
-                    disabled:opacity-50 disabled:cursor-not-allowed
-                    transition-colors duration-150"
+              {inputMode === "text" ? (
+                <Terminal
+                  size={14}
+                  className="text-accent-cyan"
+                  aria-hidden="true"
                 />
-                <p id="prompt-hint" className="text-xs text-text-muted">
-                  Ctrl+Enter to run
-                </p>
-              </div>
+              ) : (
+                <Mic
+                  size={14}
+                  className="text-accent-green"
+                  aria-hidden="true"
+                />
+              )}
+              <span className="text-xs font-mono font-semibold text-text-primary">
+                Input
+              </span>
 
-              <div className="flex flex-col gap-1.5">
-                <p className="text-xs font-mono text-text-muted uppercase tracking-wider">
-                  Sample prompts
-                </p>
-                <div className="flex flex-col gap-1.5">
-                  {SAMPLE_PROMPTS.map((p, i) => (
+              <div
+                role="tablist"
+                aria-label="Input mode selector"
+                className="ml-auto flex rounded-lg border border-border overflow-hidden"
+              >
+                {INPUT_MODES.map((mode) => {
+                  const isActive = inputMode === mode.id;
+                  return (
                     <button
-                      key={i}
-                      onClick={() => { setPrompt(p); textareaRef.current?.focus(); }}
+                      key={mode.id}
+                      role="tab"
+                      aria-selected={isActive}
+                      aria-controls={`input-panel-${mode.id}`}
+                      id={`mode-tab-${mode.id}`}
+                      onClick={() => handleModeChange(mode.id)}
                       disabled={isRunning}
-                      className="text-left text-xs text-text-secondary hover:text-text-primary
-                        px-2.5 py-2 rounded border border-border hover:border-border-strong
-                        bg-transparent hover:bg-surface-raised
-                        transition-all duration-150 font-sans leading-relaxed
-                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan
-                        disabled:opacity-40 disabled:cursor-not-allowed"
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono",
+                        "transition-colors duration-150",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan focus-visible:ring-inset",
+                        "disabled:opacity-40 disabled:cursor-not-allowed",
+                        isActive
+                          ? "bg-accent-cyan/10 text-accent-cyan"
+                          : "text-text-muted hover:text-text-secondary hover:bg-surface-raised",
+                      )}
                     >
-                      {p.length > 80 ? p.slice(0, 80) + "…" : p}
+                      {mode.icon}
+                      {mode.label}
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
+            </CardHeader>
 
-              <div className="flex flex-col gap-1.5">
-                <label
-                  htmlFor="failure-mode"
-                  className="text-xs font-mono text-text-muted uppercase tracking-wider"
-                >
-                  Simulate failure
-                </label>
-                <select
-                  id="failure-mode"
-                  value={failureMode}
-                  onChange={(e) => setFailureMode(e.target.value as FailureMode)}
-                  disabled={isRunning}
-                  className="w-full rounded-lg border border-border bg-canvas/60 px-3 py-2
-                    text-sm font-mono text-text-primary
-                    focus:outline-none focus:border-accent-cyan focus:ring-1 focus:ring-accent-cyan
-                    disabled:opacity-50 disabled:cursor-not-allowed
-                    transition-colors duration-150"
-                >
-                  {FAILURE_MODES.map((m) => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
-                  ))}
-                </select>
-                {failureMode !== "none" && (
-                  <div className="flex items-center gap-1.5 px-2 py-1.5 rounded border border-accent-amber/30 bg-accent-amber/5">
-                    <AlertTriangle size={11} className="text-accent-amber shrink-0" aria-hidden="true" />
-                    <span className="text-xs font-mono text-accent-amber">
-                      Failure will be injected mid-stream
-                    </span>
-                  </div>
+            <CardBody>
+              <div
+                id="input-panel-text"
+                role="tabpanel"
+                aria-labelledby="mode-tab-text"
+                hidden={inputMode !== "text"}
+              >
+                {inputMode === "text" && (
+                  <TextInputPanel
+                    prompt={textPrompt}
+                    onChange={setTextPrompt}
+                    onSubmit={handleRun}
+                    disabled={isRunning}
+                  />
                 )}
               </div>
 
+              <div
+                id="input-panel-audio"
+                role="tabpanel"
+                aria-labelledby="mode-tab-audio"
+                hidden={inputMode !== "audio"}
+              >
+                {inputMode === "audio" && (
+                  <AudioInputPanel
+                    onAudioReady={(blob) => setAudioBlob(blob)}
+                    disabled={isRunning}
+                  />
+                )}
+              </div>
             </CardBody>
           </Card>
 
@@ -226,16 +238,34 @@ export function InferencePlayground() {
             </CardBody>
           </Card>
 
-          <div className="flex flex-col gap-2">
+          <Card variant="inset">
+            <CardBody>
+              <FailureControls
+                value={failureMode}
+                onChange={setFailureMode}
+                disabled={isRunning}
+              />
+            </CardBody>
+          </Card>
+
+          <div
+            className="flex flex-col gap-2"
+            role="group"
+            aria-label="Inference controls"
+          >
             {!isRunning ? (
               <Button
                 variant="primary"
                 size="md"
                 onClick={handleRun}
-                disabled={!prompt.trim()}
+                disabled={!canRun}
                 leftIcon={<Play size={14} />}
                 className="w-full"
-                aria-label="Run inference"
+                aria-label={
+                  inputMode === "text"
+                    ? "Run text inference"
+                    : "Run audio inference"
+                }
               >
                 Run Inference
               </Button>
@@ -259,6 +289,7 @@ export function InferencePlayground() {
                 onClick={inference.retry}
                 leftIcon={<RotateCcw size={14} />}
                 className="w-full"
+                aria-label="Retry with the same prompt"
               >
                 Retry
               </Button>
@@ -270,6 +301,7 @@ export function InferencePlayground() {
                 size="sm"
                 onClick={inference.reset}
                 className="w-full"
+                aria-label="Clear output and reset to idle"
               >
                 Clear
               </Button>
@@ -277,25 +309,34 @@ export function InferencePlayground() {
           </div>
         </div>
 
-        {/* ── Right column: Output ──────────────────── */}
-        <div className="lg:col-span-2">
+        {/* Right column */}
+        <div className="lg:col-span-2 flex flex-col gap-3">
+          <StatusBanner
+            status={inference.status}
+            tokenCount={inference.tokenCount}
+            tokensPerSecond={inference.tokensPerSecond}
+            errorKind={inference.error?.kind}
+          />
           <StreamingOutput
             status={inference.status}
             output={inference.output}
             tokenCount={inference.tokenCount}
             error={inference.error}
+            className="flex-1"
           />
         </div>
       </div>
 
-      {/* ── Live state machine ───────────────────────── */}
+      {/* State machine visualizer */}
       <div className="stagger-4">
         <Card variant="inset">
           <CardHeader>
             <span className="text-xs font-mono font-semibold text-text-secondary">
               State Machine — current:
             </span>
-            <Badge variant="cyan" className="font-mono">{inference.status}</Badge>
+            <Badge variant="cyan" className="font-mono ml-1">
+              {inference.status}
+            </Badge>
           </CardHeader>
           <CardBody>
             <div
@@ -303,30 +344,41 @@ export function InferencePlayground() {
               role="list"
               aria-label="Inference state machine stages"
             >
-              {(["idle","connecting","streaming","completed","error","aborted"] as const).map(
-                (s, i, arr) => (
-                  <div key={s} className="flex items-center gap-2">
-                    <div
-                      role="listitem"
-                      className={`px-3 py-1.5 rounded-lg border text-xs font-mono font-medium transition-all duration-300 ${
-                        inference.status === s
-                          ? "border-accent-cyan bg-accent-cyan/10 text-accent-cyan scale-105"
-                          : "border-border bg-surface-raised text-text-muted"
-                      }`}
-                    >
-                      {s}
-                    </div>
-                    {i < arr.length - 1 && (
-                      <ArrowRight size={12} className="text-border-strong shrink-0" aria-hidden="true" />
+              {(
+                [
+                  "idle",
+                  "connecting",
+                  "streaming",
+                  "completed",
+                  "error",
+                  "aborted",
+                ] as const
+              ).map((s, i, arr) => (
+                <div key={s} className="flex items-center gap-2">
+                  <div
+                    role="listitem"
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg border text-xs font-mono font-medium transition-all duration-300",
+                      inference.status === s
+                        ? "border-accent-cyan bg-accent-cyan/10 text-accent-cyan scale-105"
+                        : "border-border bg-surface-raised text-text-muted",
                     )}
+                  >
+                    {s}
                   </div>
-                )
-              )}
+                  {i < arr.length - 1 && (
+                    <ArrowRight
+                      size={12}
+                      className="text-border-strong shrink-0"
+                      aria-hidden="true"
+                    />
+                  )}
+                </div>
+              ))}
             </div>
           </CardBody>
         </Card>
       </div>
-
     </div>
   );
 }

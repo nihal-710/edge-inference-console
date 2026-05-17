@@ -1,16 +1,8 @@
 /**
- * MetricsPanel.tsx
+ * MetricsPanel.tsx — Phase 3 update
  *
- * Displays live inference metrics:
- * - Token count (updates on every token)
- * - Tokens per second (calculated in hook, updated every 100ms)
- * - Elapsed time (updated every 100ms)
- * - Current status
- *
- * Accessibility:
- * - aria-live="polite" on the metrics container.
- * - aria-label on each metric for screen reader context.
- * - Non-color status indicators (icons + text labels).
+ * Live metrics with improved visual hierarchy.
+ * aria-live="polite" on the metrics grid for screen reader updates.
  */
 
 import { Hash, Zap, Clock, Activity } from "lucide-react";
@@ -30,7 +22,7 @@ interface MetricItemProps {
   icon: React.ReactNode;
   label: string;
   value: string;
-  active?: boolean;
+  active: boolean;
   ariaLabel: string;
 }
 
@@ -39,10 +31,8 @@ function MetricItem({ icon, label, value, active, ariaLabel }: MetricItemProps) 
     <div
       aria-label={ariaLabel}
       className={cn(
-        "flex flex-col gap-1.5 px-4 py-3 rounded-lg border transition-all duration-200",
-        active
-          ? "border-accent-cyan/30 bg-accent-cyan/5"
-          : "border-border bg-surface"
+        "flex flex-col gap-1.5 px-3 py-2.5 rounded-lg border transition-all duration-200",
+        active ? "border-accent-cyan/30 bg-accent-cyan/5" : "border-border bg-surface"
       )}
     >
       <div className="flex items-center gap-1.5">
@@ -56,23 +46,19 @@ function MetricItem({ icon, label, value, active, ariaLabel }: MetricItemProps) 
           {label}
         </span>
       </div>
-      <p
-        className={cn(
-          "text-xl font-display font-bold leading-none tracking-tight transition-colors",
-          active ? "text-accent-cyan" : "text-text-primary"
-        )}
-      >
+      <p className={cn(
+        "text-lg font-display font-bold leading-none tracking-tight transition-colors",
+        active ? "text-accent-cyan" : "text-text-primary"
+      )}>
         {value}
       </p>
     </div>
   );
 }
 
-// ─── Status label helpers ──────────────────────────────────────────────────────
-
 const STATUS_LABELS: Record<InferenceStatus, string> = {
   idle:       "Idle — awaiting input",
-  connecting: "Connecting to engine...",
+  connecting: "Connecting to engine…",
   streaming:  "Streaming tokens",
   completed:  "Run completed",
   error:      "Error — partial output preserved",
@@ -89,20 +75,13 @@ const STATUS_COLORS: Record<InferenceStatus, string> = {
 };
 
 export function MetricsPanel({
-  status,
-  tokenCount,
-  tokensPerSecond,
-  elapsedMs,
-  className,
+  status, tokenCount, tokensPerSecond, elapsedMs, className,
 }: MetricsPanelProps) {
   const isActive = status === "streaming";
 
   return (
-    <div
-      className={cn("space-y-3", className)}
-      aria-label="Live inference metrics"
-    >
-      {/* Status row */}
+    <div className={cn("space-y-2.5", className)} aria-label="Live inference metrics">
+
       <div className="flex items-center gap-2 px-1">
         <Activity size={12} className={STATUS_COLORS[status]} aria-hidden="true" />
         <span className={cn("text-xs font-mono", STATUS_COLORS[status])}>
@@ -116,28 +95,27 @@ export function MetricsPanel({
         )}
       </div>
 
-      {/* Metrics grid */}
       <div
         aria-live="polite"
         aria-atomic="false"
         className="grid grid-cols-3 gap-2"
       >
         <MetricItem
-          icon={<Hash size={13} />}
+          icon={<Hash size={12} />}
           label="Tokens"
-          value={tokenCount > 0 ? tokenCount.toString() : "—"}
+          value={tokenCount > 0 ? String(tokenCount) : "—"}
           active={isActive}
           ariaLabel={`Token count: ${tokenCount}`}
         />
         <MetricItem
-          icon={<Zap size={13} />}
+          icon={<Zap size={12} />}
           label="Tok/s"
-          value={tokensPerSecond > 0 ? `${tokensPerSecond}` : "—"}
+          value={tokensPerSecond > 0 ? String(tokensPerSecond) : "—"}
           active={isActive}
           ariaLabel={`Tokens per second: ${tokensPerSecond}`}
         />
         <MetricItem
-          icon={<Clock size={13} />}
+          icon={<Clock size={12} />}
           label="Time"
           value={elapsedMs > 0 ? formatDuration(elapsedMs) : "—"}
           active={isActive}
