@@ -1,36 +1,73 @@
-import { History, Clock, Hash, Zap, Search } from "lucide-react";
+/**
+ * SessionHistory page — Phase 5
+ *
+ * Wraps the SessionHistory component with the page-level header.
+ * Receives session state as props from App.tsx (lifted up so
+ * InferencePlayground can also call addRun).
+ */
+
+import { Hash, Zap, Clock } from "lucide-react";
 import { SectionHeader } from "../components/ui/SectionHeader";
-import { Card, CardBody, CardHeader } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
-import { Button } from "../components/ui/Button";
-import { EmptyState } from "../components/ui/EmptyState";
 import { StatCard } from "../components/ui/StatCard";
+import { SessionHistory as SessionHistoryComponent } from "../components/history/SessionHistory";
+import type { InferenceRun } from "../types/session";
 
-const HISTORY_STATS = [
-  {
-    icon: <Hash size={20} />,
-    label: "Total Runs",
-    value: "0",
-    description: "Inference runs completed this session.",
-    accent: "cyan" as const,
-  },
-  {
-    icon: <Zap size={20} />,
-    label: "Avg Tokens/s",
-    value: "—",
-    description: "Average throughput across all completed runs.",
-    accent: "green" as const,
-  },
-  {
-    icon: <Clock size={20} />,
-    label: "Avg Duration",
-    value: "—",
-    description: "Mean inference duration across completed runs.",
-    accent: "amber" as const,
-  },
-];
+interface SessionHistoryPageProps {
+  runs: InferenceRun[];
+  selectedRunId: string | null;
+  selectedRun: InferenceRun | null;
+  onSelectRun: (id: string | null) => void;
+  onClearHistory: () => void;
+}
 
-export function SessionHistory() {
+export function SessionHistory({
+  runs,
+  selectedRunId,
+  selectedRun,
+  onSelectRun,
+  onClearHistory,
+}: SessionHistoryPageProps) {
+
+  // Compute aggregate stats from runs
+  const completedRuns = runs.filter((r) => r.status === "completed");
+  const avgTps = completedRuns.length > 0
+    ? Math.round(
+        completedRuns.reduce((sum, r) => sum + r.tokensPerSecond, 0) / completedRuns.length * 10
+      ) / 10
+    : 0;
+  const avgDuration = completedRuns.length > 0
+    ? Math.round(
+        completedRuns.reduce((sum, r) => sum + r.durationMs, 0) / completedRuns.length
+      )
+    : 0;
+
+  const STAT_CARDS = [
+    {
+      icon: <Hash size={20} />,
+      label: "Total Runs",
+      value: String(runs.length),
+      description: "Inference runs saved this session.",
+      accent: "cyan" as const,
+    },
+    {
+      icon: <Zap size={20} />,
+      label: "Avg Tok/s",
+      value: completedRuns.length > 0 ? String(avgTps) : "—",
+      description: "Average throughput across completed runs.",
+      accent: "green" as const,
+    },
+    {
+      icon: <Clock size={20} />,
+      label: "Avg Duration",
+      value: completedRuns.length > 0
+        ? avgDuration < 1000 ? `${avgDuration}ms` : `${(avgDuration / 1000).toFixed(1)}s`
+        : "—",
+      description: "Mean inference duration across completed runs.",
+      accent: "amber" as const,
+    },
+  ];
+
   return (
     <div className="space-y-8">
 
@@ -42,21 +79,16 @@ export function SessionHistory() {
           actions={
             <div className="flex items-center gap-2">
               <Badge variant="green" dot>localStorage Backed</Badge>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled
-                leftIcon={<Search size={13} />}
-              >
-                Filter runs
-              </Button>
+              <Badge variant="default" className="font-mono">
+                {runs.length} {runs.length === 1 ? "run" : "runs"}
+              </Badge>
             </div>
           }
         />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {HISTORY_STATS.map((s, i) => (
+        {STAT_CARDS.map((s, i) => (
           <div key={s.label} className={`stagger-${i + 2}`}>
             <StatCard
               icon={s.icon}
@@ -70,55 +102,13 @@ export function SessionHistory() {
       </div>
 
       <div className="stagger-3">
-        <Card>
-          <CardHeader>
-            <History size={14} className="text-text-muted" aria-hidden="true" />
-            <span className="text-xs font-mono font-semibold text-text-primary">Run Log</span>
-            <Badge variant="default" className="ml-auto font-mono">0 runs</Badge>
-          </CardHeader>
-          <CardBody className="p-0">
-            <EmptyState
-              icon={<History size={22} />}
-              title="No runs yet"
-              description="Run inference in the Playground — each session will be logged here with input mode, token count, duration, and status."
-              iconColor="green"
-              meta={
-                <>
-                  <Badge variant="cyan">Input mode</Badge>
-                  <Badge variant="amber">Token count</Badge>
-                  <Badge variant="green">Duration</Badge>
-                  <Badge variant="default">Status</Badge>
-                </>
-              }
-            />
-          </CardBody>
-        </Card>
-      </div>
-
-      <div className="stagger-4">
-        <Card variant="inset">
-          <CardHeader>
-            <span className="text-xs font-mono font-semibold text-text-secondary">
-              Run Record Schema
-            </span>
-          </CardHeader>
-          <CardBody>
-            <pre className="text-xs font-mono text-text-secondary leading-relaxed overflow-x-auto">
-{`interface InferenceRun {
-  id:              string           // nanoid
-  timestamp:       number           // Unix ms
-  inputMode:       'text' | 'audio'
-  prompt:          string
-  output:          string           // partial on error
-  status:          InferenceStatus
-  tokenCount:      number
-  durationMs:      number
-  tokensPerSecond: number
-  errorMessage?:   string
-}`}
-            </pre>
-          </CardBody>
-        </Card>
+        <SessionHistoryComponent
+          runs={runs}
+          selectedRunId={selectedRunId}
+          selectedRun={selectedRun}
+          onSelectRun={onSelectRun}
+          onClearHistory={onClearHistory}
+        />
       </div>
 
     </div>

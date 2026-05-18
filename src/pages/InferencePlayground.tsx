@@ -1,4 +1,15 @@
-import { useState } from "react";
+/**
+ * InferencePlayground.tsx — Phase 5 update
+ *
+ * Adds onRunComplete prop — called after every run that reaches
+ * completed, error, or aborted state with a full InferenceRun record.
+ *
+ * The run is saved to session history exactly once per lifecycle.
+ * We use a ref to track whether we've already saved for the current run
+ * so React's double-render in StrictMode doesn't duplicate entries.
+ */
+
+import { useState, useEffect, useRef } from "react";
 import {
   Terminal,
   Zap,
@@ -11,6 +22,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { cn } from "../lib/utils";
+import { generateId } from "../lib/utils";
 import { SectionHeader } from "../components/ui/SectionHeader";
 import { Card, CardBody, CardHeader } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
@@ -24,6 +36,9 @@ import { AudioInputPanel } from "../components/playground/AudioInputPanel";
 import { FailureControls } from "../components/playground/FailureControls";
 import { useStreamingInference } from "../hooks/useStreamingInference";
 import type { FailureMode, InputMode } from "../types/inference";
+import type { InferenceRun } from "../types/session";
+
+// ─── Feature cards ─────────────────────────────────────────────────────────────
 
 const FEATURE_CARDS = [
   {
@@ -68,7 +83,17 @@ const INPUT_MODES: { id: InputMode; label: string; icon: React.ReactNode }[] = [
   { id: "audio", label: "Audio", icon: <Mic size={14} aria-hidden="true" /> },
 ];
 
-export function InferencePlayground() {
+// ─── Props ────────────────────────────────────────────────────────────────────
+
+interface InferencePlaygroundProps {
+  onRunComplete: (run: InferenceRun) => void;
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export function InferencePlayground({
+  onRunComplete,
+}: InferencePlaygroundProps) {
   const inference = useStreamingInference();
 
   const [inputMode, setInputMode] = useState<InputMode>("text");
@@ -76,28 +101,72 @@ export function InferencePlayground() {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [failureMode, setFailureMode] = useState<FailureMode>("none");
 
+  // Track the prompt for the current run so we can save it
+  const currentPromptRef = useRef("");
+  // Prevent double-save in React StrictMode double-render
+  const savedForStatusRef = useRef<string>("");
+
   const isRunning =
     inference.status === "connecting" || inference.status === "streaming";
   const canRetry =
     inference.status === "error" || inference.status === "aborted";
   const hasOutput = inference.output.length > 0;
-
   const canRun =
     inputMode === "text" ? textPrompt.trim().length > 0 : audioBlob !== null;
 
+  // ── Save run to session history when terminal state is reached ──────────────
+  useEffect(() => {
+    const terminalStatuses = ["completed", "error", "aborted"] as const;
+    const isTerminal = terminalStatuses.includes(
+      inference.status as (typeof terminalStatuses)[number],
+    );
+
+    // Only save once per status transition
+    const saveKey = `${inference.status}-${inference.tokenCount}`;
+    if (!isTerminal || savedForStatusRef.current === saveKey) return;
+    savedForStatusRef.current = saveKey;
+
+    const run: InferenceRun = {
+      id: generateId(),
+      timestamp: Date.now(),
+      inputMode,
+      prompt: currentPromptRef.current,
+      output: inference.output,
+      status: inference.status,
+      tokenCount: inference.tokenCount,
+      tokensPerSecond: inference.tokensPerSecond,
+      durationMs: inference.elapsedMs,
+      errorMessage: inference.error?.message,
+    };
+
+    onRunComplete(run);
+  }, [
+    inference.status,
+    inference.output,
+    inference.tokenCount,
+    inference.tokensPerSecond,
+    inference.elapsedMs,
+    inference.error,
+    inputMode,
+    onRunComplete,
+  ]);
+
+  // ── Run handler ─────────────────────────────────────────────────────────────
+
   const handleRun = () => {
     if (isRunning) return;
+    savedForStatusRef.current = "";
+
     if (inputMode === "text") {
       const prompt = textPrompt.trim();
       if (!prompt) return;
+      currentPromptRef.current = prompt;
       inference.run({ prompt, inputMode: "text", failureMode });
     } else {
       if (!audioBlob) return;
-      inference.run({
-        prompt: `[Audio recording — ${(audioBlob.size / 1024).toFixed(1)} KB captured via MediaRecorder]`,
-        inputMode: "audio",
-        failureMode,
-      });
+      const label = `[Audio — ${(audioBlob.size / 1024).toFixed(1)} KB via MediaRecorder]`;
+      currentPromptRef.current = label;
+      inference.run({ prompt: label, inputMode: "audio", failureMode });
     }
   };
 
@@ -159,7 +228,6 @@ export function InferencePlayground() {
               <span className="text-xs font-mono font-semibold text-text-primary">
                 Input
               </span>
-
               <div
                 role="tablist"
                 aria-label="Input mode selector"
@@ -193,7 +261,6 @@ export function InferencePlayground() {
                 })}
               </div>
             </CardHeader>
-
             <CardBody>
               <div
                 id="input-panel-text"
@@ -210,7 +277,6 @@ export function InferencePlayground() {
                   />
                 )}
               </div>
-
               <div
                 id="input-panel-audio"
                 role="tabpanel"
@@ -281,7 +347,6 @@ export function InferencePlayground() {
                 Stop Stream
               </Button>
             )}
-
             {canRetry && (
               <Button
                 variant="secondary"
@@ -289,19 +354,16 @@ export function InferencePlayground() {
                 onClick={inference.retry}
                 leftIcon={<RotateCcw size={14} />}
                 className="w-full"
-                aria-label="Retry with the same prompt"
               >
                 Retry
               </Button>
             )}
-
             {hasOutput && !isRunning && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={inference.reset}
                 className="w-full"
-                aria-label="Clear output and reset to idle"
               >
                 Clear
               </Button>
@@ -327,7 +389,7 @@ export function InferencePlayground() {
         </div>
       </div>
 
-      {/* State machine visualizer */}
+      {/* State machine */}
       <div className="stagger-4">
         <Card variant="inset">
           <CardHeader>
