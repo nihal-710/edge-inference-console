@@ -1,4 +1,3 @@
-import React from "react";
 import { Cpu, ExternalLink } from "lucide-react";
 import { NavTabs } from "./NavTabs";
 import { Badge } from "../ui/Badge";
@@ -11,10 +10,12 @@ interface AppShellProps {
   children: React.ReactNode;
 }
 
+// ── Replace this with your actual GitHub repo URL ──────────────────────────────
+const GITHUB_REPO_URL = "https://github.com/nihal-710/edge-inference-console";
+
 export function AppShell({ currentPage, onNavigate, children }: AppShellProps) {
   return (
     <div className="min-h-screen bg-canvas bg-grid flex flex-col">
-
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only fixed top-3 left-3 z-50 px-4 py-2 bg-accent-cyan text-canvas text-sm font-mono font-semibold rounded-md"
@@ -27,11 +28,14 @@ export function AppShell({ currentPage, onNavigate, children }: AppShellProps) {
         className="border-b border-border bg-surface/70 backdrop-blur-md sticky top-0 z-40"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
-
           <div className="flex items-center gap-3 min-w-0">
             <div className="relative shrink-0">
               <div className="w-9 h-9 rounded-lg bg-accent-cyan/10 border border-accent-cyan/25 flex items-center justify-center">
-                <Cpu size={17} className="text-accent-cyan" aria-hidden="true" />
+                <Cpu
+                  size={17}
+                  className="text-accent-cyan"
+                  aria-hidden="true"
+                />
               </div>
               <span
                 aria-hidden="true"
@@ -44,7 +48,10 @@ export function AppShell({ currentPage, onNavigate, children }: AppShellProps) {
                 <h1 className="text-sm font-display font-bold text-text-primary tracking-tight leading-none">
                   Edge Inference Console
                 </h1>
-                <Badge variant="amber" className="hidden sm:inline-flex shrink-0">
+                <Badge
+                  variant="amber"
+                  className="hidden sm:inline-flex shrink-0"
+                >
                   Frontend Assignment Prototype
                 </Badge>
               </div>
@@ -57,11 +64,14 @@ export function AppShell({ currentPage, onNavigate, children }: AppShellProps) {
           <div className="flex items-center gap-2 shrink-0">
             <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border bg-canvas/50">
               <StatusDot label="Mock inference API active" />
-              <span className="text-xs font-mono text-text-secondary">Mock API</span>
+              <span className="text-xs font-mono text-text-secondary">
+                Mock API
+              </span>
             </div>
-            <Badge variant="default" className="font-mono">v0.1.0</Badge>
+            <Badge variant="default" className="font-mono">
+              v0.1.0
+            </Badge>
           </div>
-
         </div>
 
         <NavTabs currentPage={currentPage} onNavigate={onNavigate} />
@@ -98,10 +108,10 @@ export function AppShell({ currentPage, onNavigate, children }: AppShellProps) {
               No backend · Browser-native · ReadableStream
             </p>
             <a
-              href="https://github.com"
+              href={GITHUB_REPO_URL}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="View source on GitHub, opens in new tab"
+              aria-label="View source code on GitHub (opens in new tab)"
               className="text-xs font-mono text-text-muted hover:text-text-secondary transition-colors flex items-center gap-1"
             >
               GitHub
@@ -110,7 +120,6 @@ export function AppShell({ currentPage, onNavigate, children }: AppShellProps) {
           </div>
         </div>
       </footer>
-
     </div>
   );
 }
