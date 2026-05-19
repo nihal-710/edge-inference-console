@@ -1,22 +1,43 @@
 /**
- * MetricsPanel.tsx — Phase 3 update
+ * MetricsPanel.tsx — Phase 6 hardened
  *
- * Live metrics with improved visual hierarchy.
- * aria-live="polite" on the metrics grid for screen reader updates.
+ * Accessibility fix:
+ * - aria-busy="true" during streaming so screen readers batch metric
+ *   announcements instead of reading every 100ms update aloud.
+ * - aria-live="polite" kept — will only announce when aria-busy clears.
  */
 
-import { Hash, Zap, Clock, Activity } from "lucide-react";
+import { Hash, Zap, Clock, Activity, FileText, Mic } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { formatDuration } from "../../lib/utils";
-import type { InferenceStatus } from "../../types/inference";
+import type { InferenceStatus, InputMode } from "../../types/inference";
 
 interface MetricsPanelProps {
   status: InferenceStatus;
   tokenCount: number;
   tokensPerSecond: number;
   elapsedMs: number;
+  inputMode: InputMode;
   className?: string;
 }
+
+const STATUS_COLORS: Record<InferenceStatus, string> = {
+  idle:       "text-status-idle",
+  connecting: "text-status-connecting",
+  streaming:  "text-status-streaming",
+  completed:  "text-status-completed",
+  error:      "text-status-error",
+  aborted:    "text-status-aborted",
+};
+
+const STATUS_LABELS: Record<InferenceStatus, string> = {
+  idle:       "Idle",
+  connecting: "Connecting",
+  streaming:  "Streaming",
+  completed:  "Completed",
+  error:      "Error",
+  aborted:    "Stopped",
+};
 
 interface MetricItemProps {
   icon: React.ReactNode;
@@ -31,7 +52,7 @@ function MetricItem({ icon, label, value, active, ariaLabel }: MetricItemProps) 
     <div
       aria-label={ariaLabel}
       className={cn(
-        "flex flex-col gap-1.5 px-3 py-2.5 rounded-lg border transition-all duration-200",
+        "flex flex-col gap-1.5 p-3 rounded-lg border transition-all duration-200",
         active ? "border-accent-cyan/30 bg-accent-cyan/5" : "border-border bg-surface"
       )}
     >
@@ -42,12 +63,12 @@ function MetricItem({ icon, label, value, active, ariaLabel }: MetricItemProps) 
         >
           {icon}
         </span>
-        <span className="text-xs font-mono text-text-muted uppercase tracking-widest">
+        <span className="text-xs font-mono text-text-muted uppercase tracking-widest leading-none">
           {label}
         </span>
       </div>
       <p className={cn(
-        "text-lg font-display font-bold leading-none tracking-tight transition-colors",
+        "text-lg font-display font-bold leading-none tracking-tight tabular-nums transition-colors",
         active ? "text-accent-cyan" : "text-text-primary"
       )}>
         {value}
@@ -56,48 +77,45 @@ function MetricItem({ icon, label, value, active, ariaLabel }: MetricItemProps) 
   );
 }
 
-const STATUS_LABELS: Record<InferenceStatus, string> = {
-  idle:       "Idle — awaiting input",
-  connecting: "Connecting to engine…",
-  streaming:  "Streaming tokens",
-  completed:  "Run completed",
-  error:      "Error — partial output preserved",
-  aborted:    "Stopped by user",
-};
-
-const STATUS_COLORS: Record<InferenceStatus, string> = {
-  idle:       "text-status-idle",
-  connecting: "text-status-connecting",
-  streaming:  "text-status-streaming",
-  completed:  "text-status-completed",
-  error:      "text-status-error",
-  aborted:    "text-status-aborted",
-};
-
 export function MetricsPanel({
-  status, tokenCount, tokensPerSecond, elapsedMs, className,
+  status, tokenCount, tokensPerSecond, elapsedMs, inputMode, className,
 }: MetricsPanelProps) {
   const isActive = status === "streaming";
+  const isStreaming = status === "streaming";
 
   return (
-    <div className={cn("space-y-2.5", className)} aria-label="Live inference metrics">
+    <div className={cn("flex flex-col gap-3", className)} aria-label="Live inference metrics">
 
-      <div className="flex items-center gap-2 px-1">
-        <Activity size={12} className={STATUS_COLORS[status]} aria-hidden="true" />
-        <span className={cn("text-xs font-mono", STATUS_COLORS[status])}>
-          {STATUS_LABELS[status]}
-        </span>
-        {isActive && (
-          <span
-            aria-hidden="true"
-            className="w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse-dot ml-auto"
-          />
-        )}
+      {/* Status + mode row */}
+      <div className="flex items-center justify-between gap-2 px-0.5">
+        <div className="flex items-center gap-1.5">
+          <Activity size={12} className={STATUS_COLORS[status]} aria-hidden="true" />
+          <span className={cn("text-xs font-mono font-medium", STATUS_COLORS[status])}>
+            {STATUS_LABELS[status]}
+          </span>
+          {isActive && (
+            <span
+              aria-hidden="true"
+              className="w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse-dot"
+            />
+          )}
+        </div>
+        <div className="flex items-center gap-1 px-2 py-1 rounded border border-border bg-surface">
+          {inputMode === "text"
+            ? <FileText size={11} className="text-text-muted" aria-hidden="true" />
+            : <Mic size={11} className="text-text-muted" aria-hidden="true" />}
+          <span className="text-xs font-mono text-text-muted capitalize">{inputMode}</span>
+        </div>
       </div>
 
+      {/* Metrics grid
+          aria-busy="true" while streaming tells screen readers to hold off
+          announcing the rapid updates — they'll be announced when busy clears. */}
       <div
         aria-live="polite"
         aria-atomic="false"
+        aria-busy={isStreaming}
+        aria-label="Inference metrics"
         className="grid grid-cols-3 gap-2"
       >
         <MetricItem

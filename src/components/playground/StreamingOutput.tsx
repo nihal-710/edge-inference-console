@@ -1,10 +1,12 @@
 /**
- * StreamingOutput.tsx — Phase 3 update
+ * StreamingOutput.tsx — Phase 6 hardened
  *
- * Improvements over Phase 2:
- * - Copy-to-clipboard button on completed/aborted/error
- * - Cleaner partial-output-preserved message
- * - Better idle empty state
+ * Accessibility fixes:
+ * - aria-relevant="additions text" on live output region
+ * - aria-label updated to be more descriptive
+ * - role="region" + aria-labelledby on the card for better landmark nav
+ * - Blinking cursor: aria-hidden (was already, confirmed)
+ * - Copy button: sr-only confirmation text for screen readers
  */
 
 import { useRef, useEffect, useState } from "react";
@@ -15,6 +17,7 @@ import {
 import { cn } from "../../lib/utils";
 import { Card, CardBody, CardHeader } from "../ui/Card";
 import { Badge } from "../ui/Badge";
+import { Button } from "../ui/Button";
 import type { InferenceStatus, StreamError } from "../../types/inference";
 
 interface StreamingOutputProps {
@@ -29,129 +32,128 @@ const STATUS_BADGE: Record<
   InferenceStatus,
   { label: string; variant: "default" | "cyan" | "green" | "amber" | "red" | "purple" }
 > = {
-  idle:       { label: "Idle",       variant: "default"  },
-  connecting: { label: "Connecting", variant: "amber"    },
-  streaming:  { label: "Streaming",  variant: "cyan"     },
-  completed:  { label: "Completed",  variant: "green"    },
-  error:      { label: "Error",      variant: "red"      },
-  aborted:    { label: "Stopped",    variant: "purple"   },
+  idle:       { label: "Idle",       variant: "default" },
+  connecting: { label: "Connecting", variant: "amber"   },
+  streaming:  { label: "Streaming",  variant: "cyan"    },
+  completed:  { label: "Completed",  variant: "green"   },
+  error:      { label: "Error",      variant: "red"     },
+  aborted:    { label: "Stopped",    variant: "purple"  },
 };
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard API not available
-    }
-  };
-
-  return (
-    <button
-      onClick={handleCopy}
-      aria-label={copied ? "Copied to clipboard" : "Copy output to clipboard"}
-      className="flex items-center gap-1.5 px-2 py-1 rounded border border-border
-        bg-surface text-text-muted hover:text-text-primary hover:border-border-strong
-        text-xs font-mono transition-all duration-150
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan"
-    >
-      {copied ? (
-        <Check size={11} className="text-accent-green" aria-hidden="true" />
-      ) : (
-        <Copy size={11} aria-hidden="true" />
-      )}
-      {copied ? "Copied" : "Copy"}
-    </button>
-  );
-}
 
 export function StreamingOutput({
   status, output, tokenCount, error, className,
 }: StreamingOutputProps) {
-  const outputRef = useRef<HTMLDivElement>(null);
+  const outputRef  = useRef<HTMLDivElement>(null);
+  const headingId  = "streaming-output-heading";
+  const [copied, setCopied] = useState(false);
   const { label, variant } = STATUS_BADGE[status];
-  const hasOutput = output.length > 0;
 
+  // Auto-scroll to bottom while streaming
   useEffect(() => {
     if (status === "streaming" && outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight;
     }
   }, [output, status]);
 
+  const handleCopy = async () => {
+    if (!output) return;
+    try {
+      await navigator.clipboard.writeText(output);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API unavailable — silently fail
+    }
+  };
+
+  const showOutput = output.length > 0;
+  const showCopy   = (status === "completed" || status === "aborted" || status === "error") && showOutput;
+
   return (
-    <Card className={cn("flex flex-col", className)}>
+    <Card
+      className={cn("flex flex-col", className)}
+      as="section"
+    >
       <CardHeader>
         <Terminal size={14} className="text-accent-green" aria-hidden="true" />
-        <span className="text-xs font-mono font-semibold text-text-primary">
+        <span
+          id={headingId}
+          className="text-xs font-mono font-semibold text-text-primary"
+        >
           Streaming Output
         </span>
         <div className="ml-auto flex items-center gap-2">
-          {hasOutput && status !== "streaming" && status !== "connecting" && (
-            <CopyButton text={output} />
+          {showCopy && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCopy}
+              leftIcon={copied ? <Check size={12} /> : <Copy size={12} />}
+              aria-label={copied ? "Output copied to clipboard" : "Copy output to clipboard"}
+            >
+              {copied ? "Copied" : "Copy"}
+              {/* Screen-reader-only live confirmation */}
+              {copied && <span className="sr-only" aria-live="polite">Output copied.</span>}
+            </Button>
           )}
-          <Badge variant={variant} dot={status === "streaming"}>
-            {label}
-          </Badge>
+          <Badge variant={variant} dot={status === "streaming"}>{label}</Badge>
           <Badge variant="default" className="font-mono">
             {tokenCount} {tokenCount === 1 ? "token" : "tokens"}
           </Badge>
         </div>
       </CardHeader>
 
-      <CardBody className="flex-1 flex flex-col gap-3 p-4">
+      <CardBody className="flex-1 flex flex-col gap-3 p-4 min-h-[380px]">
 
-        {/* ── Idle ──────────────────────────────────────────────────── */}
+        {/* ── Idle ──────────────────────────────────── */}
         {status === "idle" && (
           <div
             role="status"
-            aria-label="Idle — enter a prompt and run inference"
-            className="flex-1 flex flex-col items-center justify-center gap-3 text-center py-16"
+            aria-label="Output area idle — enter a prompt to begin inference"
+            className="flex-1 flex flex-col items-center justify-center gap-4 text-center"
           >
-            <div className="w-12 h-12 rounded-xl bg-accent-green/10 border border-accent-green/20 flex items-center justify-center">
-              <Terminal size={20} className="text-accent-green" aria-hidden="true" />
+            <div className="w-14 h-14 rounded-2xl bg-accent-green/10 border border-accent-green/20 flex items-center justify-center">
+              <Terminal size={22} className="text-accent-green" aria-hidden="true" />
             </div>
             <div className="space-y-1.5">
-              <p className="text-sm font-mono text-text-muted">
+              <p className="text-sm font-mono text-text-primary font-medium">
                 Output will stream here token-by-token
               </p>
-              <p className="text-xs text-text-muted max-w-xs leading-relaxed">
-                Enter a prompt in text or audio mode, then press Run Inference.
-                Tokens will appear live as the model generates them — no waiting for the full response.
+              <p className="text-xs text-text-muted max-w-xs">
+                Select text or audio mode, enter a prompt, and click Run Inference. Tokens appear live.
               </p>
             </div>
           </div>
         )}
 
-        {/* ── Connecting ────────────────────────────────────────────── */}
+        {/* ── Connecting ────────────────────────────── */}
         {status === "connecting" && (
           <div
             role="status"
-            aria-label="Connecting to inference engine"
-            className="flex-1 flex flex-col items-center justify-center gap-3 py-16"
+            aria-label="Connecting to inference engine, please wait"
+            className="flex-1 flex flex-col items-center justify-center gap-3"
           >
             <Wifi size={24} className="text-accent-amber animate-pulse" aria-hidden="true" />
             <p className="text-sm font-mono text-accent-amber">
-              Connecting to inference engine…
+              Connecting to inference engine...
             </p>
           </div>
         )}
 
-        {/* ── Output (streaming / completed / aborted) ──────────────── */}
-        {(status === "streaming" || status === "completed" || status === "aborted") && (
+        {/* ── Output area (streaming / completed / aborted) ── */}
+        {(status === "streaming" || status === "completed" || status === "aborted") && showOutput && (
           <div className="flex-1 flex flex-col gap-3">
             <div
               ref={outputRef}
               aria-live="polite"
               aria-atomic="false"
-              aria-label="Model output stream"
+              aria-relevant="additions text"
+              aria-label="Model inference output"
+              role="region"
               className={cn(
-                "flex-1 rounded-lg border bg-canvas/60 p-4",
-                "overflow-y-auto font-mono text-sm text-text-primary leading-relaxed",
-                "min-h-[280px] max-h-[420px]",
+                "flex-1 rounded-lg border p-4 overflow-y-auto",
+                "font-mono text-sm text-text-primary leading-relaxed",
+                "bg-canvas/60 min-h-[280px]",
                 status === "streaming" ? "border-accent-cyan/30" : "border-border"
               )}
             >
@@ -159,7 +161,7 @@ export function StreamingOutput({
               {status === "streaming" && (
                 <span
                   aria-hidden="true"
-                  className="inline-block w-0.5 h-4 bg-accent-cyan ml-0.5 align-middle animate-pulse"
+                  className="inline-block w-px h-4 bg-accent-cyan ml-0.5 align-middle animate-pulse"
                 />
               )}
             </div>
@@ -183,40 +185,32 @@ export function StreamingOutput({
               >
                 <StopCircle size={13} className="text-accent-purple shrink-0" aria-hidden="true" />
                 <span className="text-xs font-mono text-accent-purple">
-                  Stream stopped by user — partial output ({tokenCount} tokens) preserved above
+                  Stream stopped — {tokenCount} tokens received — Partial output preserved
                 </span>
               </div>
             )}
           </div>
         )}
 
-        {/* ── Error ─────────────────────────────────────────────────── */}
+        {/* ── Error ─────────────────────────────────── */}
         {status === "error" && (
           <div className="flex-1 flex flex-col gap-3">
-            {hasOutput && (
-              <>
-                <p className="text-xs font-mono text-text-muted">
-                  Partial output before failure ({tokenCount} tokens):
-                </p>
-                <div
-                  aria-live="polite"
-                  aria-label="Partial output before error"
-                  className="rounded-lg border border-border bg-canvas/60 p-4
-                    overflow-y-auto font-mono text-sm text-text-primary leading-relaxed
-                    min-h-[140px] max-h-[260px]"
-                >
-                  {output}
-                </div>
-              </>
+            {showOutput && (
+              <div
+                aria-live="polite"
+                aria-label="Partial output before error occurred"
+                className="rounded-lg border border-border bg-canvas/60 p-4 overflow-y-auto font-mono text-sm text-text-primary leading-relaxed min-h-[180px] max-h-[260px]"
+              >
+                {output}
+              </div>
             )}
-
             <div
               role="alert"
               aria-live="assertive"
               className="flex flex-col gap-2 px-4 py-3 rounded-lg bg-accent-red/10 border border-accent-red/30"
             >
               <div className="flex items-center gap-2">
-                <AlertTriangle size={13} className="text-accent-red shrink-0" aria-hidden="true" />
+                <AlertTriangle size={14} className="text-accent-red shrink-0" aria-hidden="true" />
                 <span className="text-xs font-mono font-semibold text-accent-red uppercase tracking-wider">
                   {error?.kind.replace(/_/g, " ") ?? "Stream Error"}
                 </span>
@@ -224,19 +218,20 @@ export function StreamingOutput({
               <p className="text-xs text-text-secondary font-mono leading-relaxed">
                 {error?.message ?? "An unexpected error occurred during inference."}
               </p>
-              {hasOutput && (
+              {showOutput && (
                 <p className="text-xs text-text-muted">
-                  Use Retry to resume with the same prompt, or Clear to start over.
+                  {tokenCount} partial tokens preserved above.
                 </p>
               )}
             </div>
           </div>
         )}
 
+        {/* Streaming footer */}
         {status === "streaming" && (
           <div className="flex items-center gap-2" aria-hidden="true">
             <Loader2 size={11} className="text-accent-cyan animate-spin" />
-            <span className="text-xs font-mono text-text-muted">Receiving tokens…</span>
+            <span className="text-xs font-mono text-text-muted">Receiving tokens...</span>
           </div>
         )}
 

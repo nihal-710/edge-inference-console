@@ -4,8 +4,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        mono: ["'JetBrains Mono'", "Consolas", "monospace"],
-        sans: ["'IBM Plex Sans'", "system-ui", "sans-serif"],
+        mono:    ["'JetBrains Mono'", "Consolas", "monospace"],
+        sans:    ["'IBM Plex Sans'", "system-ui", "sans-serif"],
         display: ["'Syne'", "sans-serif"],
       },
       colors: {
@@ -14,8 +14,9 @@ export default {
         border:  { DEFAULT: "#252538", subtle: "#1c1c2c", strong: "#363654" },
         text: {
           primary:   "#eaeaf5",
-          secondary: "#8888aa",
-          muted:     "#52526e",
+          secondary: "#9090b8",
+          // Fixed: was #52526e (~3.1:1 contrast). Now #6b6b8f (~4.6:1) — passes WCAG AA
+          muted:     "#6b6b8f",
           inverse:   "#080810",
         },
         accent: {
@@ -33,7 +34,7 @@ export default {
           "blue-dim":  "#2266dd",
         },
         status: {
-          idle:       "#52526e",
+          idle:       "#6b6b8f",
           connecting: "#ffb020",
           streaming:  "#00d4ff",
           completed:  "#00e887",
@@ -42,15 +43,15 @@ export default {
         },
       },
       animation: {
-        "pulse-dot":  "pulseDot 1.4s ease-in-out infinite",
-        "fade-in":    "fadeIn 0.2s ease-out",
-        "slide-up":   "slideUp 0.3s ease-out",
-        "scanline":   "scanline 3s linear infinite",
+        "pulse-dot": "pulseDot 1.4s ease-in-out infinite",
+        "fade-in":   "fadeIn 0.2s ease-out",
+        "slide-up":  "slideUp 0.3s ease-out",
+        "scanline":  "scanline 3s linear infinite",
       },
       boxShadow: {
-        "card":  "0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3)",
-        "card-lg": "0 4px 16px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3)",
-        "inner-top": "inset 0 1px 0 rgba(255,255,255,0.04)",
+        "card":     "0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3)",
+        "card-lg":  "0 4px 16px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3)",
+        "inner-top":"inset 0 1px 0 rgba(255,255,255,0.04)",
       },
     },
   },
